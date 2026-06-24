@@ -1,0 +1,205 @@
+'use client'
+
+import { useCallback, useState } from 'react'
+import { Check, FileText, Loader2, Lock } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import { Field, TextInput } from './fields'
+import { ProblemPhase } from './problem-phase'
+import { SolutionPhase } from './solution-phase'
+import { RisksPhase } from './risks-phase'
+import { PrdOutput } from './prd-output'
+import { initialData, isPhaseComplete, type Phase, type PrdData } from './types'
+
+const PHASES: { id: Phase; label: string; n: number }[] = [
+  { id: 'problem', label: 'Problem Space', n: 1 },
+  { id: 'solution', label: 'Solution Space', n: 2 },
+  { id: 'risks', label: 'Risks & Dependencies', n: 3 },
+]
+
+export function PrdForm() {
+  const [data, setData] = useState<PrdData>(initialData)
+  const [active, setActive] = useState<Phase>('problem')
+  const [generating, setGenerating] = useState(false)
+  const [generated, setGenerated] = useState(false)
+
+  const set = useCallback(
+    <K extends keyof PrdData>(key: K, value: PrdData[K]) =>
+      setData((prev) => ({ ...prev, [key]: value })),
+    [],
+  )
+
+  const problemDone = isPhaseComplete('problem', data)
+  const solutionDone = isPhaseComplete('solution', data)
+  const risksDone = isPhaseComplete('risks', data)
+
+  // Phase-gating: a tab unlocks only when prior required phases are complete.
+  const isLocked = (phase: Phase) => {
+    if (phase === 'solution') return !problemDone
+    if (phase === 'risks') return !problemDone || !solutionDone
+    return false
+  }
+
+  const phaseDone: Record<Phase, boolean> = {
+    problem: problemDone,
+    solution: solutionDone,
+    risks: risksDone,
+  }
+
+  const allComplete = problemDone && solutionDone && risksDone
+
+  const handleGenerate = async () => {
+    setGenerating(true)
+    await new Promise((r) => setTimeout(r, 1400))
+    setGenerating(false)
+    setGenerated(true)
+  }
+
+  if (generated) {
+    return (
+      <PrdOutput
+        data={data}
+        onBack={() => {
+          setGenerated(false)
+          setActive('risks')
+        }}
+      />
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Universal header fields */}
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Product / Feature Name" htmlFor="productName" required>
+            <TextInput
+              id="productName"
+              value={data.productName}
+              onChange={(e) => set('productName', e.target.value)}
+              placeholder="e.g. Smart Inbox"
+            />
+          </Field>
+          <Field label="Author Name" htmlFor="authorName" optional>
+            <TextInput
+              id="authorName"
+              value={data.authorName}
+              onChange={(e) => set('authorName', e.target.value)}
+              placeholder="Your name"
+            />
+          </Field>
+        </div>
+      </div>
+
+      {/* Phase tabs */}
+      <div
+        role="tablist"
+        aria-label="PRD phases"
+        className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+      >
+        {PHASES.map((phase) => {
+          const locked = isLocked(phase.id)
+          const isActive = active === phase.id
+          const done = phaseDone[phase.id]
+          return (
+            <button
+              key={phase.id}
+              role="tab"
+              type="button"
+              aria-selected={isActive}
+              disabled={locked}
+              onClick={() => !locked && setActive(phase.id)}
+              className={cn(
+                'flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors',
+                isActive
+                  ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                  : 'border-border bg-card text-foreground hover:border-primary/40',
+                locked && 'cursor-not-allowed opacity-55 hover:border-border',
+              )}
+            >
+              <span
+                className={cn(
+                  'flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+                  isActive
+                    ? 'bg-primary-foreground/20 text-primary-foreground'
+                    : done
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground',
+                )}
+              >
+                {locked ? (
+                  <Lock className="size-3.5" />
+                ) : done ? (
+                  <Check className="size-3.5" />
+                ) : (
+                  phase.n
+                )}
+              </span>
+              <span className="flex flex-col">
+                <span className="text-sm font-medium leading-tight">
+                  {phase.label}
+                </span>
+                <span
+                  className={cn(
+                    'text-xs',
+                    isActive
+                      ? 'text-primary-foreground/80'
+                      : 'text-muted-foreground',
+                  )}
+                >
+                  Phase {phase.n}
+                </span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Locked notice */}
+      {active === 'problem' && !problemDone && (
+        <p className="text-xs text-muted-foreground">
+          Complete all required Problem Space fields to unlock Solution Space.
+        </p>
+      )}
+
+      {/* Active phase content */}
+      <div
+        role="tabpanel"
+        className="rounded-2xl border border-border bg-card/50 p-5 shadow-sm sm:p-7"
+      >
+        {active === 'problem' && <ProblemPhase data={data} set={set} />}
+        {active === 'solution' && <SolutionPhase data={data} set={set} />}
+        {active === 'risks' && <RisksPhase data={data} set={set} />}
+      </div>
+
+      {/* Submit */}
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
+        {!allComplete && (
+          <p className="text-xs text-muted-foreground sm:mr-auto">
+            Fill in every required field across all three phases to generate
+            your PRD.
+          </p>
+        )}
+        <Button
+          type="button"
+          size="lg"
+          disabled={!allComplete || generating}
+          onClick={handleGenerate}
+          className="h-11 px-6 text-sm"
+        >
+          {generating ? (
+            <>
+              <Loader2 className="animate-spin" />
+              Generating PRD...
+            </>
+          ) : (
+            <>
+              <FileText />
+              Generate PRD
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  )
+}
