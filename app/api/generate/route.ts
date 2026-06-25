@@ -1,7 +1,7 @@
 import { anthropic } from '@ai-sdk/anthropic'
 import { streamText } from 'ai'
 import {
-  AI_FEATURE_SYSTEM_ADDENDUM,
+  aiFeatureAddendum,
   buildOnePagerPrompt,
   buildPrFaqPrompt,
   buildUserPrompt,
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
   // Append its serialized context and the AI addendum so the eight extra
   // sections are generated for whichever mode is active.
   if (body.aiFeature && typeof body.aiFeature === 'object') {
-    system = `${system}\n\n${AI_FEATURE_SYSTEM_ADDENDUM}`
+    system = `${system}\n\n${aiFeatureAddendum(mode)}`
     prompt = `${prompt}\n${serializeAiFeature(body.aiFeature as AiFeatureData)}`
   }
 
