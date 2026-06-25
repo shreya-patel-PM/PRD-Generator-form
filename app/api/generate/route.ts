@@ -1,9 +1,10 @@
 import { anthropic } from '@ai-sdk/anthropic'
-import { generateText } from 'ai'
+import { streamText } from 'ai'
 import { buildUserPrompt, PRD_SYSTEM_PROMPT } from '@/components/prd/build-prompt'
 import type { PrdData } from '@/components/prd/types'
 
-// Allow up to 60s for the model to produce a full PRD.
+// Stream the response so we never hit the 60s serverless timeout while waiting
+// for the full PRD to finish generating.
 export const maxDuration = 60
 
 export async function POST(req: Request) {
@@ -21,20 +22,16 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Invalid request body.' }, { status: 400 })
   }
 
-  try {
-    const { text } = await generateText({
-      model: anthropic('claude-sonnet-4-5'),
-      system: PRD_SYSTEM_PROMPT,
-      prompt: buildUserPrompt(data),
-      maxOutputTokens: 4000,
-    })
+  const result = streamText({
+    model: anthropic('claude-sonnet-4-5'),
+    system: PRD_SYSTEM_PROMPT,
+    prompt: buildUserPrompt(data),
+    maxOutputTokens: 4096,
+    onError: ({ error }) => {
+      console.log('[v0] PRD streaming error:', error)
+    },
+  })
 
-    return Response.json({ markdown: text })
-  } catch (err) {
-    console.log('[v0] PRD generation error:', err)
-    return Response.json(
-      { error: 'Failed to generate the PRD. Please try again.' },
-      { status: 500 },
-    )
-  }
+  // Plain text stream — the client reads it progressively with a stream reader.
+  return result.toTextStreamResponse()
 }

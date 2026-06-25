@@ -27,6 +27,7 @@ export function PrdForm() {
   const [data, setData] = useState<PrdData>(initialData)
   const [active, setActive] = useState<Phase>('problem')
   const [generating, setGenerating] = useState(false)
+  const [streaming, setStreaming] = useState(false)
   const [markdown, setMarkdown] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -64,21 +65,47 @@ export function PrdForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json?.error || 'Generation failed.')
-      setMarkdown(json.markdown as string)
+
+      if (!res.ok) {
+        // Error responses come back as JSON, not a stream.
+        const json = await res.json().catch(() => null)
+        throw new Error(json?.error || 'Generation failed.')
+      }
+
+      if (!res.body) throw new Error('No response stream received.')
+
+      // Switch into the output view and append text as it streams in.
+      setMarkdown('')
+      setStreaming(true)
+      setGenerating(false)
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let acc = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        acc += decoder.decode(value, { stream: true })
+        setMarkdown(acc)
+      }
+      acc += decoder.decode()
+      setMarkdown(acc)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
+      setMarkdown(null)
     } finally {
       setGenerating(false)
+      setStreaming(false)
     }
   }
 
-  if (markdown) {
+  if (markdown !== null) {
     return (
       <PrdOutput
         markdown={markdown}
         productName={data.productName}
+        streaming={streaming}
         onBack={() => {
           setMarkdown(null)
           setActive('risks')
