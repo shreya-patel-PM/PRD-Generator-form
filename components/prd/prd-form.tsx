@@ -21,7 +21,8 @@ export function PrdForm() {
   const [data, setData] = useState<PrdData>(initialData)
   const [active, setActive] = useState<Phase>('problem')
   const [generating, setGenerating] = useState(false)
-  const [generated, setGenerated] = useState(false)
+  const [markdown, setMarkdown] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const set = useCallback(
     <K extends keyof PrdData>(key: K, value: PrdData[K]) =>
@@ -50,17 +51,30 @@ export function PrdForm() {
 
   const handleGenerate = async () => {
     setGenerating(true)
-    await new Promise((r) => setTimeout(r, 1400))
-    setGenerating(false)
-    setGenerated(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json?.error || 'Generation failed.')
+      setMarkdown(json.markdown as string)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong.')
+    } finally {
+      setGenerating(false)
+    }
   }
 
-  if (generated) {
+  if (markdown) {
     return (
       <PrdOutput
-        data={data}
+        markdown={markdown}
+        productName={data.productName}
         onBack={() => {
-          setGenerated(false)
+          setMarkdown(null)
           setActive('risks')
         }}
       />
@@ -171,6 +185,16 @@ export function PrdForm() {
         {active === 'solution' && <SolutionPhase data={data} set={set} />}
         {active === 'risks' && <RisksPhase data={data} set={set} />}
       </div>
+
+      {/* Error */}
+      {error && (
+        <p
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
+          {error}
+        </p>
+      )}
 
       {/* Submit */}
       <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
