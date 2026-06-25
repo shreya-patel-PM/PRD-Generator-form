@@ -5,15 +5,28 @@ import { Check, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Field, TextArea, TextInput } from './fields'
 import { BlockingFields, FormError, GenerateBar } from './form-shared'
+import { CompliancePhase } from './compliance-phase'
 import {
   getPrFaqMissingFields,
   initialPrFaq,
   isPrFaqPhaseComplete,
+  PR_FAQ_FIELD_SPECS,
   type PrFaqData,
   type PrFaqPhase,
 } from './modes'
+import {
+  RequiredOverridesControl,
+  type RequiredOverrides,
+} from './required-overrides'
+import {
+  hasComplianceContent,
+  initialCompliance,
+  type ComplianceData,
+} from './compliance'
 import type { PrdGeneration } from './use-prd-generation'
 import type { AiFeatureControls } from './ai-feature'
+
+type TabId = PrFaqPhase | 'compliance'
 
 const PHASES: { id: PrFaqPhase; label: string; n: number }[] = [
   { id: 'customer', label: 'Customer & Problem', n: 1 },
@@ -33,7 +46,11 @@ export function PrFaqForm({
   ai: AiFeatureControls
 }) {
   const [data, setData] = useState<PrFaqData>(initialPrFaq)
-  const [active, setActive] = useState<PrFaqPhase>('customer')
+  const [active, setActive] = useState<TabId>('customer')
+  const [requiredOverrides, setRequiredOverrides] = useState<RequiredOverrides>(
+    {},
+  )
+  const [compliance, setCompliance] = useState<ComplianceData>(initialCompliance)
 
   const set = useCallback(
     <K extends keyof PrFaqData>(key: K, value: PrFaqData[K]) =>
@@ -41,10 +58,27 @@ export function PrFaqForm({
     [],
   )
 
-  const customerDone = isPrFaqPhaseComplete('customer', data)
-  const visionDone = isPrFaqPhaseComplete('vision', data)
-  const strategicDone = isPrFaqPhaseComplete('strategic', data)
+  const setRequired = useCallback(
+    (key: string, required: boolean) =>
+      setRequiredOverrides((prev) => ({ ...prev, [key]: required })),
+    [],
+  )
+
+  const setComplianceField = useCallback(
+    (patch: Partial<ComplianceData>) =>
+      setCompliance((prev) => ({ ...prev, ...patch })),
+    [],
+  )
+
+  const customerDone = isPrFaqPhaseComplete('customer', data, requiredOverrides)
+  const visionDone = isPrFaqPhaseComplete('vision', data, requiredOverrides)
+  const strategicDone = isPrFaqPhaseComplete(
+    'strategic',
+    data,
+    requiredOverrides,
+  )
   const ready = customerDone && visionDone && strategicDone && ai.ready
+  const complianceFilled = hasComplianceContent(compliance)
 
   const isLocked = (phase: PrFaqPhase) => {
     if (phase === 'vision') return !customerDone
@@ -68,9 +102,12 @@ export function PrFaqForm({
   const handleGenerate = () =>
     gen.generate({
       mode: 'pr-faq',
-      productName,
       authorName,
       ...data,
+      // The vision-phase product name wins; fall back to the universal header.
+      productName: data.productName.trim() || productName,
+      requiredOverrides,
+      compliance,
       ...ai.payload,
     })
 
@@ -80,7 +117,7 @@ export function PrFaqForm({
       <div
         role="tablist"
         aria-label="PR/FAQ phases"
-        className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+        className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4"
       >
         {PHASES.map((phase) => {
           const locked = isLocked(phase.id)
@@ -136,17 +173,72 @@ export function PrFaqForm({
             </button>
           )
         })}
+
+        {/* Phase 4 — Compliance & Review (always accessible) */}
+        <button
+          role="tab"
+          type="button"
+          aria-selected={active === 'compliance'}
+          onClick={() => setActive('compliance')}
+          className={cn(
+            'flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors',
+            active === 'compliance'
+              ? 'border-mode-pr-faq bg-mode-pr-faq text-card shadow-sm'
+              : 'border-border bg-card text-foreground hover:border-mode-pr-faq/40',
+          )}
+        >
+          <span
+            className={cn(
+              'flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+              active === 'compliance'
+                ? 'bg-card/20 text-card'
+                : complianceFilled
+                  ? 'bg-mode-pr-faq text-card'
+                  : 'bg-muted text-muted-foreground',
+            )}
+          >
+            {complianceFilled && active !== 'compliance' ? (
+              <Check className="size-3.5" />
+            ) : (
+              <Lock className="size-3.5" />
+            )}
+          </span>
+          <span className="flex flex-col">
+            <span className="text-sm font-medium leading-tight">
+              Compliance &amp; Review
+            </span>
+            <span
+              className={cn(
+                'text-xs',
+                active === 'compliance'
+                  ? 'text-card/80'
+                  : 'text-muted-foreground',
+              )}
+            >
+              Optional
+            </span>
+          </span>
+        </button>
       </div>
 
-      <BlockingFields
-        missing={getPrFaqMissingFields(active, data)}
-        nextLabel={nextLabel}
-      />
+      {active !== 'compliance' && (
+        <BlockingFields
+          missing={getPrFaqMissingFields(active, data, requiredOverrides)}
+          nextLabel={nextLabel}
+        />
+      )}
 
       <div
         role="tabpanel"
         className="flex flex-col gap-6 rounded-2xl border border-border bg-card/50 p-5 shadow-sm sm:p-7"
       >
+        {active !== 'compliance' && (
+          <RequiredOverridesControl
+            specs={PR_FAQ_FIELD_SPECS[active]}
+            overrides={requiredOverrides}
+            onChange={setRequired}
+          />
+        )}
         {active === 'customer' && (
           <>
             <Field
@@ -319,6 +411,10 @@ export function PrFaqForm({
               />
             </Field>
           </>
+        )}
+
+        {active === 'compliance' && (
+          <CompliancePhase data={compliance} onChange={setComplianceField} />
         )}
       </div>
 

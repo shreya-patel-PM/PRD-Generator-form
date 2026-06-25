@@ -5,16 +5,24 @@ import {
   buildOnePagerPrompt,
   buildPrFaqPrompt,
   buildUserPrompt,
+  COMPLIANCE_ADDENDUM,
   LAYER1_IDENTITY,
   LAYER4_RULES,
   ONE_PAGER_SYSTEM_PROMPT,
   PR_FAQ_SYSTEM_PROMPT,
   PRD_SYSTEM_PROMPT,
   serializeAiFeature,
+  serializeCompliance,
+  serializeOverrides,
 } from '@/components/prd/build-prompt'
 import type { PrdData } from '@/components/prd/types'
 import type { Mode, OnePagerData, PrFaqData } from '@/components/prd/modes'
 import type { AiFeatureData } from '@/components/prd/ai-feature'
+import {
+  hasComplianceContent,
+  type ComplianceData,
+} from '@/components/prd/compliance'
+import type { RequiredOverrides } from '@/components/prd/required-overrides'
 
 // Stream the response so we never hit the 60s serverless timeout while waiting
 // for the full document to finish generating.
@@ -74,6 +82,26 @@ export async function POST(req: Request) {
     prompt = buildUserPrompt(body as unknown as PrdData)
   }
 
+  // Per-field required overrides — lets the model distinguish fields the PM
+  // intentionally left empty from genuine gaps.
+  if (body.requiredOverrides && typeof body.requiredOverrides === 'object') {
+    const overrideNote = serializeOverrides(
+      body.requiredOverrides as RequiredOverrides,
+    )
+    if (overrideNote) prompt = `${prompt}\n${overrideNote}`
+  }
+
+  // Optional Compliance & Review phase (Mode B and C). Only append when the PM
+  // actually enabled a review or added a sign-off.
+  const compliance =
+    body.compliance && typeof body.compliance === 'object'
+      ? (body.compliance as ComplianceData)
+      : null
+  const complianceOn = compliance ? hasComplianceContent(compliance) : false
+  if (compliance && complianceOn) {
+    prompt = `${prompt}\n${serializeCompliance(compliance)}`
+  }
+
   // Layer 3 — AI add-on (only when the AI Feature toggle is on). The client
   // sends an `aiFeature` object; append its serialized context to the user
   // prompt and the mode-aware addendum to the system prompt.
@@ -82,12 +110,14 @@ export async function POST(req: Request) {
     prompt = `${prompt}\n${serializeAiFeature(body.aiFeature as AiFeatureData)}`
   }
 
-  // Assemble the system prompt in 5 layers:
-  // Layer 1 (identity) + Layer 2 (mode) + Layer 3 (AI, if on) + Layer 4 (rules).
+  // Assemble the system prompt in layers:
+  // Layer 1 (identity) + Layer 2 (mode) + Layer 3 (AI, if on)
+  // + compliance addendum (if on) + Layer 4 (rules).
   const system = [
     LAYER1_IDENTITY,
     modeSystem,
     aiOn ? aiFeatureAddendum(mode) : null,
+    complianceOn ? COMPLIANCE_ADDENDUM : null,
     LAYER4_RULES,
   ]
     .filter(Boolean)

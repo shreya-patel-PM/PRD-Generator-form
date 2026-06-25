@@ -1,3 +1,10 @@
+import {
+  type FieldSpec,
+  type RequiredOverrides,
+  specsComplete,
+  specsMissing,
+} from './required-overrides'
+
 export type Mode = 'one-pager' | 'full' | 'pr-faq'
 
 export type ModeMeta = {
@@ -67,16 +74,39 @@ export const initialOnePager: OnePagerData = {
   openQuestions: '',
 }
 
-export function isOnePagerComplete(d: OnePagerData): boolean {
-  return (
-    filled(d.targetCustomer) &&
-    filled(d.problemStatement) &&
-    filled(d.whyNow) &&
-    filled(d.solutionSketch) &&
-    filled(d.successMetrics) &&
-    filled(d.topRisks) &&
-    filled(d.openQuestions)
-  )
+export type OnePagerSection = 'problem' | 'solution' | 'risks'
+
+// Customizable field specs grouped by the 1-Pager's three on-screen sections.
+export const ONE_PAGER_FIELD_SPECS: Record<
+  OnePagerSection,
+  FieldSpec<OnePagerData>[]
+> = {
+  problem: [
+    { key: 'targetCustomer', label: 'Target Customer', defaultRequired: true, isFilled: (d) => filled(d.targetCustomer) },
+    { key: 'problemStatement', label: 'Problem Statement', defaultRequired: true, isFilled: (d) => filled(d.problemStatement) },
+    { key: 'whyNow', label: 'Why Now', defaultRequired: true, isFilled: (d) => filled(d.whyNow) },
+  ],
+  solution: [
+    { key: 'solutionSketch', label: 'Solution Sketch', defaultRequired: true, isFilled: (d) => filled(d.solutionSketch) },
+    { key: 'successMetrics', label: 'Success Metrics', defaultRequired: true, isFilled: (d) => filled(d.successMetrics) },
+  ],
+  risks: [
+    { key: 'topRisks', label: 'Top Risks', defaultRequired: true, isFilled: (d) => filled(d.topRisks) },
+    { key: 'openQuestions', label: 'Open Questions', defaultRequired: true, isFilled: (d) => filled(d.openQuestions) },
+  ],
+}
+
+const ALL_ONE_PAGER_SPECS = [
+  ...ONE_PAGER_FIELD_SPECS.problem,
+  ...ONE_PAGER_FIELD_SPECS.solution,
+  ...ONE_PAGER_FIELD_SPECS.risks,
+]
+
+export function isOnePagerComplete(
+  d: OnePagerData,
+  overrides: RequiredOverrides = {},
+): boolean {
+  return specsComplete(ALL_ONE_PAGER_SPECS, d, overrides)
 }
 
 // ---------------------------------------------------------------------------
@@ -120,58 +150,41 @@ export const initialPrFaq: PrFaqData = {
   successMetrics: '',
 }
 
+// Customizable field specs grouped by PR/FAQ phase.
+export const PR_FAQ_FIELD_SPECS: Record<PrFaqPhase, FieldSpec<PrFaqData>[]> = {
+  customer: [
+    { key: 'targetCustomer', label: 'Target Customer', defaultRequired: true, isFilled: (d) => filled(d.targetCustomer) },
+    { key: 'currentPain', label: "Customer's Current Pain", defaultRequired: true, isFilled: (d) => filled(d.currentPain) },
+    { key: 'whyExistingFail', label: 'Why Existing Solutions Fail', defaultRequired: true, isFilled: (d) => filled(d.whyExistingFail) },
+  ],
+  vision: [
+    { key: 'productName', label: 'Product Name', defaultRequired: true, isFilled: (d) => filled(d.productName) },
+    { key: 'launchDate', label: 'Launch Date', defaultRequired: true, isFilled: (d) => filled(d.launchDate) },
+    { key: 'keyBenefit', label: 'Key Customer Benefit', defaultRequired: true, isFilled: (d) => filled(d.keyBenefit) },
+    { key: 'customerQuote', label: 'Customer Quote', defaultRequired: true, isFilled: (d) => filled(d.customerQuote) },
+    { key: 'executiveQuote', label: 'Executive Quote', defaultRequired: true, isFilled: (d) => filled(d.executiveQuote) },
+  ],
+  strategic: [
+    { key: 'whyNow', label: 'Why Now?', defaultRequired: true, isFilled: (d) => filled(d.whyNow) },
+    { key: 'whatMustBeTrue', label: 'What Needs to Be True', defaultRequired: true, isFilled: (d) => filled(d.whatMustBeTrue) },
+    { key: 'hardestPart', label: 'Hardest Part to Build', defaultRequired: true, isFilled: (d) => filled(d.hardestPart) },
+    { key: 'worstCase', label: 'Worst-Case Failure', defaultRequired: true, isFilled: (d) => filled(d.worstCase) },
+    { key: 'successMetrics', label: 'Success Metrics', defaultRequired: true, isFilled: (d) => filled(d.successMetrics) },
+  ],
+}
+
 export function isPrFaqPhaseComplete(
   phase: PrFaqPhase,
   d: PrFaqData,
+  overrides: RequiredOverrides = {},
 ): boolean {
-  if (phase === 'customer') {
-    return (
-      filled(d.targetCustomer) &&
-      filled(d.currentPain) &&
-      filled(d.whyExistingFail)
-    )
-  }
-  if (phase === 'vision') {
-    return (
-      filled(d.productName) &&
-      filled(d.launchDate) &&
-      filled(d.keyBenefit) &&
-      filled(d.customerQuote) &&
-      filled(d.executiveQuote)
-    )
-  }
-  return (
-    filled(d.whyNow) &&
-    filled(d.whatMustBeTrue) &&
-    filled(d.hardestPart) &&
-    filled(d.worstCase) &&
-    filled(d.successMetrics)
-  )
+  return specsComplete(PR_FAQ_FIELD_SPECS[phase], d, overrides)
 }
 
 export function getPrFaqMissingFields(
   phase: PrFaqPhase,
   d: PrFaqData,
+  overrides: RequiredOverrides = {},
 ): string[] {
-  const missing: string[] = []
-  if (phase === 'customer') {
-    if (!filled(d.targetCustomer)) missing.push('Target Customer')
-    if (!filled(d.currentPain)) missing.push("Customer's Current Pain")
-    if (!filled(d.whyExistingFail)) missing.push('Why Existing Solutions Fail')
-    return missing
-  }
-  if (phase === 'vision') {
-    if (!filled(d.productName)) missing.push('Product Name')
-    if (!filled(d.launchDate)) missing.push('Launch Date')
-    if (!filled(d.keyBenefit)) missing.push('Key Customer Benefit')
-    if (!filled(d.customerQuote)) missing.push('Customer Quote')
-    if (!filled(d.executiveQuote)) missing.push('Executive Quote')
-    return missing
-  }
-  if (!filled(d.whyNow)) missing.push('Why Now?')
-  if (!filled(d.whatMustBeTrue)) missing.push('What Needs to Be True')
-  if (!filled(d.hardestPart)) missing.push('Hardest Part to Build')
-  if (!filled(d.worstCase)) missing.push('Worst-Case Failure')
-  if (!filled(d.successMetrics)) missing.push('Success Metrics')
-  return missing
+  return specsMissing(PR_FAQ_FIELD_SPECS[phase], d, overrides)
 }

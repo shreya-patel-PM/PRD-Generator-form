@@ -6,8 +6,13 @@ import { FormError, GenerateBar } from './form-shared'
 import {
   initialOnePager,
   isOnePagerComplete,
+  ONE_PAGER_FIELD_SPECS,
   type OnePagerData,
 } from './modes'
+import {
+  RequiredOverridesControl,
+  type RequiredOverrides,
+} from './required-overrides'
 import type { PrdGeneration } from './use-prd-generation'
 import type { AiFeatureControls } from './ai-feature'
 
@@ -34,6 +39,9 @@ export function OnePagerForm({
   ai: AiFeatureControls
 }) {
   const [data, setData] = useState<OnePagerData>(initialOnePager)
+  const [requiredOverrides, setRequiredOverrides] = useState<RequiredOverrides>(
+    {},
+  )
 
   const set = useCallback(
     <K extends keyof OnePagerData>(key: K, value: OnePagerData[K]) =>
@@ -41,7 +49,17 @@ export function OnePagerForm({
     [],
   )
 
-  const ready = isOnePagerComplete(data) && ai.ready
+  const setRequired = useCallback(
+    (key: string, required: boolean) =>
+      setRequiredOverrides((prev) => ({ ...prev, [key]: required })),
+    [],
+  )
+
+  // All 1-Pager fields default to required, so the effective state is simply
+  // the override when present.
+  const req = (key: string) => requiredOverrides[key] ?? true
+
+  const ready = isOnePagerComplete(data, requiredOverrides) && ai.ready
 
   const handleGenerate = () =>
     gen.generate({
@@ -49,6 +67,7 @@ export function OnePagerForm({
       productName,
       authorName,
       ...data,
+      requiredOverrides,
       ...ai.payload,
     })
 
@@ -57,10 +76,16 @@ export function OnePagerForm({
       {/* All phases visible at once — no gating for the 1-Pager. */}
       <section className="flex flex-col gap-5 rounded-2xl border border-border bg-card/50 p-5 shadow-sm sm:p-7">
         <PhaseHeading n={1} title="Problem Space" />
+        <RequiredOverridesControl
+          specs={ONE_PAGER_FIELD_SPECS.problem}
+          overrides={requiredOverrides}
+          onChange={setRequired}
+        />
         <Field
           label="Target Customer"
           htmlFor="op-targetCustomer"
-          required
+          required={req('targetCustomer')}
+          optional={!req('targetCustomer')}
           hint="Who is this for, in one sentence"
         >
           <TextInput
@@ -73,7 +98,8 @@ export function OnePagerForm({
         <Field
           label="Problem Statement"
           htmlFor="op-problemStatement"
-          required
+          required={req('problemStatement')}
+          optional={!req('problemStatement')}
           hint="What problem are they experiencing? Don't write the solution here."
         >
           <TextArea
@@ -86,7 +112,8 @@ export function OnePagerForm({
         <Field
           label="Why Now?"
           htmlFor="op-whyNow"
-          required
+          required={req('whyNow')}
+          optional={!req('whyNow')}
           hint="Why is this the right time to solve it?"
         >
           <TextArea
@@ -100,10 +127,16 @@ export function OnePagerForm({
 
       <section className="flex flex-col gap-5 rounded-2xl border border-border bg-card/50 p-5 shadow-sm sm:p-7">
         <PhaseHeading n={2} title="Solution Space" />
+        <RequiredOverridesControl
+          specs={ONE_PAGER_FIELD_SPECS.solution}
+          overrides={requiredOverrides}
+          onChange={setRequired}
+        />
         <Field
           label="Solution Sketch"
           htmlFor="op-solutionSketch"
-          required
+          required={req('solutionSketch')}
+          optional={!req('solutionSketch')}
           hint="How does it work? Don't over-detail."
         >
           <TextArea
@@ -116,7 +149,8 @@ export function OnePagerForm({
         <Field
           label="Success Metrics"
           htmlFor="op-successMetrics"
-          required
+          required={req('successMetrics')}
+          optional={!req('successMetrics')}
           hint="What would success look like? Type TBD if unsure."
         >
           <TextArea
@@ -130,7 +164,17 @@ export function OnePagerForm({
 
       <section className="flex flex-col gap-5 rounded-2xl border border-border bg-card/50 p-5 shadow-sm sm:p-7">
         <PhaseHeading n={3} title="Risks" />
-        <Field label="Top Risks" htmlFor="op-topRisks" required>
+        <RequiredOverridesControl
+          specs={ONE_PAGER_FIELD_SPECS.risks}
+          overrides={requiredOverrides}
+          onChange={setRequired}
+        />
+        <Field
+          label="Top Risks"
+          htmlFor="op-topRisks"
+          required={req('topRisks')}
+          optional={!req('topRisks')}
+        >
           <TextArea
             id="op-topRisks"
             value={data.topRisks}
@@ -138,7 +182,12 @@ export function OnePagerForm({
             placeholder="What could go wrong?"
           />
         </Field>
-        <Field label="Open Questions" htmlFor="op-openQuestions" required>
+        <Field
+          label="Open Questions"
+          htmlFor="op-openQuestions"
+          required={req('openQuestions')}
+          optional={!req('openQuestions')}
+        >
           <TextArea
             id="op-openQuestions"
             value={data.openQuestions}
