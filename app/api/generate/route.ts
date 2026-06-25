@@ -1,11 +1,21 @@
 import { anthropic } from '@ai-sdk/anthropic'
 import { streamText } from 'ai'
-import { buildUserPrompt, PRD_SYSTEM_PROMPT } from '@/components/prd/build-prompt'
+import {
+  buildOnePagerPrompt,
+  buildPrFaqPrompt,
+  buildUserPrompt,
+  ONE_PAGER_SYSTEM_PROMPT,
+  PR_FAQ_SYSTEM_PROMPT,
+  PRD_SYSTEM_PROMPT,
+} from '@/components/prd/build-prompt'
 import type { PrdData } from '@/components/prd/types'
+import type { Mode, OnePagerData, PrFaqData } from '@/components/prd/modes'
 
 // Stream the response so we never hit the 60s serverless timeout while waiting
-// for the full PRD to finish generating.
+// for the full document to finish generating.
 export const maxDuration = 60
+
+type Payload = Record<string, unknown> & { mode?: Mode }
 
 export async function POST(req: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -15,17 +25,36 @@ export async function POST(req: Request) {
     )
   }
 
-  let data: PrdData
+  let body: Payload
   try {
-    data = (await req.json()) as PrdData
+    body = (await req.json()) as Payload
   } catch {
     return Response.json({ error: 'Invalid request body.' }, { status: 400 })
   }
 
+  const mode: Mode = body.mode ?? 'full'
+  const header = {
+    productName: String(body.productName ?? ''),
+    authorName: String(body.authorName ?? ''),
+  }
+
+  let system: string
+  let prompt: string
+  if (mode === 'one-pager') {
+    system = ONE_PAGER_SYSTEM_PROMPT
+    prompt = buildOnePagerPrompt(body as unknown as OnePagerData, header)
+  } else if (mode === 'pr-faq') {
+    system = PR_FAQ_SYSTEM_PROMPT
+    prompt = buildPrFaqPrompt(body as unknown as PrFaqData, header)
+  } else {
+    system = PRD_SYSTEM_PROMPT
+    prompt = buildUserPrompt(body as unknown as PrdData)
+  }
+
   const result = streamText({
     model: anthropic('claude-sonnet-4-5'),
-    system: PRD_SYSTEM_PROMPT,
-    prompt: buildUserPrompt(data),
+    system,
+    prompt,
     maxOutputTokens: 16384,
     onError: ({ error }) => {
       console.log('[v0] PRD streaming error:', error)

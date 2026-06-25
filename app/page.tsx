@@ -14,9 +14,9 @@ export default function Page() {
             Write a sharper product requirements doc
           </h1>
           <p className="max-w-xl text-pretty leading-relaxed text-muted-foreground">
-            Work through three phases — Problem, Solution, and Risks. Each phase
-            unlocks once the previous one is complete, so your thinking stays in
-            order.
+            Pick a format — a quick 1-Pager, an implementation-ready Full PRD, or
+            an Amazon-style PR/FAQ — then work through each phase to generate a
+            sharp first draft.
           </p>
         </header>
         <PrdForm />
