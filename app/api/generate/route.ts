@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     model: anthropic('claude-sonnet-4-5'),
     system: PRD_SYSTEM_PROMPT,
     prompt: buildUserPrompt(data),
-    maxOutputTokens: 8192,
+    maxOutputTokens: 16384,
     onError: ({ error }) => {
       console.log('[v0] PRD streaming error:', error)
     },
