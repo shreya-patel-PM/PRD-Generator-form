@@ -1,6 +1,8 @@
 import type { PrdData } from './types'
 import type { Mode, OnePagerData, PrFaqData } from './modes'
 import type { AiFeatureData } from './ai-feature'
+import type { ComplianceData } from './compliance'
+import type { RequiredOverrides } from './required-overrides'
 
 // ---------------------------------------------------------------------------
 // Layer 1 — Identity & Voice (always present, prepended to every prompt)
@@ -294,6 +296,68 @@ export function aiFeatureAddendum(mode: Mode): string {
     AI_CONCISENESS,
   ].join('\n')
 }
+
+// Turns a camelCase field key into a human label, e.g. problemStatement →
+// "Problem Statement". Used so the prompt can name customized fields without a
+// runtime import of the client-side spec maps.
+const humanizeKey = (key: string) =>
+  key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (c) => c.toUpperCase())
+    .trim()
+
+// Tells the model which fields the PM intentionally made optional (so an empty
+// value is deliberate, not an oversight) and which were explicitly required.
+export function serializeOverrides(overrides: RequiredOverrides): string {
+  const entries = Object.entries(overrides)
+  if (entries.length === 0) return ''
+  const optional = entries
+    .filter(([, required]) => !required)
+    .map(([key]) => humanizeKey(key))
+  const required = entries
+    .filter(([, required]) => required)
+    .map(([key]) => humanizeKey(key))
+
+  const lines = ['', '## FIELD REQUIREMENTS (customized by the PM)']
+  if (optional.length > 0)
+    lines.push(
+      `Intentionally OPTIONAL — an empty value here is deliberate. Do NOT flag these as gaps or missing; only add a brief PLACEHOLDER if it genuinely helps: ${optional.join(', ')}.`,
+    )
+  if (required.length > 0)
+    lines.push(`Explicitly REQUIRED by the PM: ${required.join(', ')}.`)
+  return lines.join('\n')
+}
+
+// Serializes the optional Compliance & Review phase into labeled context.
+export function serializeCompliance(d: ComplianceData): string {
+  const v = (s: string) => (s.trim() ? s.trim() : '(no notes provided)')
+  const lines = ['', '## COMPLIANCE & REVIEW']
+
+  lines.push(`Legal Review Needed: ${d.legalNeeded ? 'Yes' : 'No'}`)
+  if (d.legalNeeded) lines.push(`  - Legal Notes: ${v(d.legalNotes)}`)
+  lines.push(`Privacy Review Needed: ${d.privacyNeeded ? 'Yes' : 'No'}`)
+  if (d.privacyNeeded) lines.push(`  - Privacy Notes: ${v(d.privacyNotes)}`)
+  lines.push(`Security/Data Review Needed: ${d.securityNeeded ? 'Yes' : 'No'}`)
+  if (d.securityNeeded) lines.push(`  - Security Notes: ${v(d.securityNotes)}`)
+
+  const signoffs = d.signoffs.filter((s) => s.name.trim() || s.role.trim())
+  if (signoffs.length > 0) {
+    lines.push('Stakeholder Sign-offs:')
+    signoffs.forEach((s) =>
+      lines.push(
+        `  - ${s.name.trim() || '(unnamed)'} | ${s.role.trim() || '(no role)'} | ${s.status}`,
+      ),
+    )
+  } else {
+    lines.push('Stakeholder Sign-offs: (none provided)')
+  }
+  return lines.join('\n')
+}
+
+// System addendum instructing how to render the compliance context. Applied
+// only when the PM supplied compliance content (Mode B and Mode C).
+export const COMPLIANCE_ADDENDUM =
+  "COMPLIANCE & REVIEW ADDENDUM: The PM supplied compliance context. Add a '## Compliance & Review' section near the end of the document, just before the Self-Review Checklist. Include a subsection ONLY for each review the PM marked as needed (Legal, Privacy, and/or Security/Data) — summarize what must be reviewed and fold in the PM's notes. Do NOT invent or include reviews that were marked No, and do NOT flag disabled reviews as gaps. If stakeholder sign-offs were provided, render them as a Markdown table with columns: Name | Role | Status. Keep the whole section concise."
 
 export const PRD_SYSTEM_PROMPT =
   "You are a senior product manager helping a colleague turn structured product context into a full PRD. Write in a clear, direct PM voice — specific where the input is specific, calibrated where the input is vague. Where input is vague or missing, write a PLACEHOLDER block (e.g., 'PLACEHOLDER: success metrics — likely candidates include X, Y, Z; PM to confirm'). Never invent dependencies or constraints not in the input. Output the PRD in clean Markdown with these sections in order: Change History, Background, Problem Statement, Target Personas, Customer Quote, Alignment to Strategy, Assumptions, Proposed Solution, Scope, Non-Goals, User Flows (only if provided), Acceptance Criteria, Success Metrics, Risks, Dependencies, Open Questions. You MUST include every section listed above, even if the input is sparse — use PLACEHOLDER blocks for sections with thin input. The final section MUST always be the Self-Review Checklist. Never stop generating before the Self-Review Checklist is complete. End with a Self-Review Checklist that lists: sections where input was rich (Confidence), sections with PLACEHOLDERs (Needs Follow-up), likely reviewer questions, and recommended next actions. CONCISENESS RULES:\n- Total PRD length should be 1,500-3,500 words for a Full PRD. Never exceed 4,000 words.\n- Each section should be 2-5 sentences of prose or 3-7 bullet points. Not both.\n- PLACEHOLDER blocks are 1-2 sentences max: state what's missing and suggest 2-3 candidates. Do not expand PLACEHOLDERs into multi-paragraph explorations.\n- Do not add sub-sections, behavioral patterns, demographic details, or strategic questions that the PM did not provide. If input is thin, write a short PLACEHOLDER and move on.\n- When input is rich and specific, use the PM's language directly. Do not paraphrase into longer versions.\n- The Self-Review Checklist at the end should be bullet points only, not prose.\n\nCRITICAL: You MUST complete every section including the Self-Review Checklist. If you are running long, shorten earlier sections rather than dropping the Self-Review Checklist. The Self-Review Checklist is the final section and must always appear. Budget your output: regular PRD sections should use 60% of the output, AI sections 30%, Self-Review Checklist 10%."
