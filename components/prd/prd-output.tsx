@@ -1,10 +1,20 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowLeft, Check, Copy, Download, Loader2 } from 'lucide-react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import {
+  ArrowLeft,
+  Check,
+  Copy,
+  Download,
+  FileText,
+  Loader2,
+  Table2,
+} from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
+import { markdownToConfluence } from './export-converters'
 
 function slugify(name: string): string {
   const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -22,12 +32,42 @@ export function PrdOutput({
   streaming?: boolean
   onBack: () => void
 }) {
-  const [copied, setCopied] = useState(false)
+  const [copiedKey, setCopiedKey] = useState<
+    'markdown' | 'confluence' | 'gdocs' | null
+  >(null)
+
+  const flash = (key: 'markdown' | 'confluence' | 'gdocs') => {
+    setCopiedKey(key)
+    setTimeout(() => setCopiedKey((prev) => (prev === key ? null : prev)), 2000)
+  }
 
   const copy = async () => {
     await navigator.clipboard.writeText(markdown)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    flash('markdown')
+  }
+
+  const copyConfluence = async () => {
+    await navigator.clipboard.writeText(markdownToConfluence(markdown))
+    flash('confluence')
+  }
+
+  const copyGoogleDocs = async () => {
+    const html = renderToStaticMarkup(
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>,
+    )
+    try {
+      // Write both HTML and plain text so Google Docs picks up rich formatting.
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([markdown], { type: 'text/plain' }),
+        }),
+      ])
+    } catch {
+      // Fallback for browsers without ClipboardItem support.
+      await navigator.clipboard.writeText(markdown)
+    }
+    flash('gdocs')
   }
 
   const download = () => {
@@ -49,26 +89,51 @@ export function PrdOutput({
           <ArrowLeft />
           Back to editor
         </Button>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           {streaming && (
-            <span className="mr-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground sm:mr-1">
               <Loader2 className="size-3.5 animate-spin" />
               Generating...
             </span>
           )}
-          <Button variant="outline" size="sm" onClick={copy} disabled={streaming}>
-            {copied ? <Check /> : <Copy />}
-            {copied ? 'Copied' : 'Copy Markdown'}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={download}
-            disabled={streaming}
-          >
-            <Download />
-            Download .md
-          </Button>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={copy}
+              disabled={streaming}
+            >
+              {copiedKey === 'markdown' ? <Check /> : <Copy />}
+              {copiedKey === 'markdown' ? 'Copied!' : 'Copy Markdown'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={download}
+              disabled={streaming}
+            >
+              <Download />
+              Download .md
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={copyConfluence}
+              disabled={streaming}
+            >
+              {copiedKey === 'confluence' ? <Check /> : <Table2 />}
+              {copiedKey === 'confluence' ? 'Copied!' : 'Copy for Confluence'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={copyGoogleDocs}
+              disabled={streaming}
+            >
+              {copiedKey === 'gdocs' ? <Check /> : <FileText />}
+              {copiedKey === 'gdocs' ? 'Copied!' : 'Copy for Google Docs'}
+            </Button>
+          </div>
         </div>
       </div>
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
