@@ -32,7 +32,23 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Invalid request body.' }, { status: 400 })
   }
 
-  const mode: Mode = body.mode ?? 'full'
+  // Normalize the incoming mode so we accept both the form's keys
+  // (one-pager / full / pr-faq) and the alternate aliases
+  // (1-pager / full-prd / prfaq).
+  const normalizeMode = (raw: unknown): Mode => {
+    switch (String(raw ?? '').toLowerCase()) {
+      case 'one-pager':
+      case '1-pager':
+        return 'one-pager'
+      case 'pr-faq':
+      case 'prfaq':
+        return 'pr-faq'
+      default:
+        return 'full'
+    }
+  }
+
+  const mode = normalizeMode(body.mode)
   const header = {
     productName: String(body.productName ?? ''),
     authorName: String(body.authorName ?? ''),
