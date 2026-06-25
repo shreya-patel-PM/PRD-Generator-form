@@ -5,6 +5,8 @@ import {
   buildOnePagerPrompt,
   buildPrFaqPrompt,
   buildUserPrompt,
+  LAYER1_IDENTITY,
+  LAYER4_RULES,
   ONE_PAGER_SYSTEM_PROMPT,
   PR_FAQ_SYSTEM_PROMPT,
   PRD_SYSTEM_PROMPT,
@@ -57,31 +59,45 @@ export async function POST(req: Request) {
     authorName: String(body.authorName ?? ''),
   }
 
-  let system: string
+  // Layer 2 — mode-specific prompt (Layer 5 conciseness/budget rules are
+  // embedded within each mode prompt).
+  let modeSystem: string
   let prompt: string
   if (mode === 'one-pager') {
-    system = ONE_PAGER_SYSTEM_PROMPT
+    modeSystem = ONE_PAGER_SYSTEM_PROMPT
     prompt = buildOnePagerPrompt(body as unknown as OnePagerData, header)
   } else if (mode === 'pr-faq') {
-    system = PR_FAQ_SYSTEM_PROMPT
+    modeSystem = PR_FAQ_SYSTEM_PROMPT
     prompt = buildPrFaqPrompt(body as unknown as PrFaqData, header)
   } else {
-    system = PRD_SYSTEM_PROMPT
+    modeSystem = PRD_SYSTEM_PROMPT
     prompt = buildUserPrompt(body as unknown as PrdData)
   }
 
-  // When the AI Feature toggle is on, the client sends an `aiFeature` object.
-  // Append its serialized context and the AI addendum so the eight extra
-  // sections are generated for whichever mode is active.
-  if (body.aiFeature && typeof body.aiFeature === 'object') {
-    system = `${system}\n\n${aiFeatureAddendum(mode)}`
+  // Layer 3 — AI add-on (only when the AI Feature toggle is on). The client
+  // sends an `aiFeature` object; append its serialized context to the user
+  // prompt and the mode-aware addendum to the system prompt.
+  const aiOn = Boolean(body.aiFeature && typeof body.aiFeature === 'object')
+  if (aiOn) {
     prompt = `${prompt}\n${serializeAiFeature(body.aiFeature as AiFeatureData)}`
   }
+
+  // Assemble the system prompt in 5 layers:
+  // Layer 1 (identity) + Layer 2 (mode) + Layer 3 (AI, if on) + Layer 4 (rules).
+  const system = [
+    LAYER1_IDENTITY,
+    modeSystem,
+    aiOn ? aiFeatureAddendum(mode) : null,
+    LAYER4_RULES,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
 
   const result = streamText({
     model: anthropic('claude-sonnet-4-5'),
     system,
     prompt,
+    temperature: 0.3,
     maxOutputTokens: 16384,
     onError: ({ error }) => {
       console.log('[v0] PRD streaming error:', error)
