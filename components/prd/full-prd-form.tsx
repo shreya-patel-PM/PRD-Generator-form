@@ -15,6 +15,7 @@ import {
   type PrdData,
 } from './types'
 import type { PrdGeneration } from './use-prd-generation'
+import type { AiFeatureControls } from './ai-feature'
 
 const PHASES: { id: Phase; label: string; n: number }[] = [
   { id: 'problem', label: 'Problem Space', n: 1 },
@@ -26,10 +27,12 @@ export function FullPrdForm({
   productName,
   authorName,
   gen,
+  ai,
 }: {
   productName: string
   authorName: string
   gen: PrdGeneration
+  ai: AiFeatureControls
 }) {
   const [data, setData] = useState<PrdData>(initialData)
   const [active, setActive] = useState<Phase>('problem')
@@ -59,7 +62,7 @@ export function FullPrdForm({
     risks: risksDone,
   }
 
-  const allComplete = problemDone && solutionDone && risksDone
+  const allComplete = problemDone && solutionDone && risksDone && ai.ready
 
   const nextLabel =
     active === 'problem'
@@ -68,7 +71,8 @@ export function FullPrdForm({
         ? 'Risks & Dependencies'
         : null
 
-  const handleGenerate = () => gen.generate({ mode: 'full', ...fullData })
+  const handleGenerate = () =>
+    gen.generate({ mode: 'full', ...fullData, ...ai.payload })
 
   return (
     <div className="flex flex-col gap-6">
@@ -150,6 +154,8 @@ export function FullPrdForm({
         {active === 'solution' && <SolutionPhase data={data} set={set} />}
         {active === 'risks' && <RisksPhase data={data} set={set} />}
       </div>
+
+      {ai.section}
 
       <FormError message={gen.error} />
       <GenerateBar

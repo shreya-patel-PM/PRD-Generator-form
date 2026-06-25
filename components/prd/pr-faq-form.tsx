@@ -13,6 +13,7 @@ import {
   type PrFaqPhase,
 } from './modes'
 import type { PrdGeneration } from './use-prd-generation'
+import type { AiFeatureControls } from './ai-feature'
 
 const PHASES: { id: PrFaqPhase; label: string; n: number }[] = [
   { id: 'customer', label: 'Customer & Problem', n: 1 },
@@ -24,10 +25,12 @@ export function PrFaqForm({
   productName,
   authorName,
   gen,
+  ai,
 }: {
   productName: string
   authorName: string
   gen: PrdGeneration
+  ai: AiFeatureControls
 }) {
   const [data, setData] = useState<PrFaqData>(initialPrFaq)
   const [active, setActive] = useState<PrFaqPhase>('customer')
@@ -41,7 +44,7 @@ export function PrFaqForm({
   const customerDone = isPrFaqPhaseComplete('customer', data)
   const visionDone = isPrFaqPhaseComplete('vision', data)
   const strategicDone = isPrFaqPhaseComplete('strategic', data)
-  const ready = customerDone && visionDone && strategicDone
+  const ready = customerDone && visionDone && strategicDone && ai.ready
 
   const isLocked = (phase: PrFaqPhase) => {
     if (phase === 'vision') return !customerDone
@@ -63,7 +66,13 @@ export function PrFaqForm({
         : null
 
   const handleGenerate = () =>
-    gen.generate({ mode: 'pr-faq', productName, authorName, ...data })
+    gen.generate({
+      mode: 'pr-faq',
+      productName,
+      authorName,
+      ...data,
+      ...ai.payload,
+    })
 
   return (
     <div className="flex flex-col gap-6">
@@ -312,6 +321,8 @@ export function PrFaqForm({
           </>
         )}
       </div>
+
+      {ai.section}
 
       <FormError message={gen.error} />
       <GenerateBar
