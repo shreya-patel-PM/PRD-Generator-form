@@ -1,15 +1,18 @@
 import { anthropic } from '@ai-sdk/anthropic'
 import { streamText } from 'ai'
 import {
+  AI_FEATURE_SYSTEM_ADDENDUM,
   buildOnePagerPrompt,
   buildPrFaqPrompt,
   buildUserPrompt,
   ONE_PAGER_SYSTEM_PROMPT,
   PR_FAQ_SYSTEM_PROMPT,
   PRD_SYSTEM_PROMPT,
+  serializeAiFeature,
 } from '@/components/prd/build-prompt'
 import type { PrdData } from '@/components/prd/types'
 import type { Mode, OnePagerData, PrFaqData } from '@/components/prd/modes'
+import type { AiFeatureData } from '@/components/prd/ai-feature'
 
 // Stream the response so we never hit the 60s serverless timeout while waiting
 // for the full document to finish generating.
@@ -65,6 +68,14 @@ export async function POST(req: Request) {
   } else {
     system = PRD_SYSTEM_PROMPT
     prompt = buildUserPrompt(body as unknown as PrdData)
+  }
+
+  // When the AI Feature toggle is on, the client sends an `aiFeature` object.
+  // Append its serialized context and the AI addendum so the eight extra
+  // sections are generated for whichever mode is active.
+  if (body.aiFeature && typeof body.aiFeature === 'object') {
+    system = `${system}\n\n${AI_FEATURE_SYSTEM_ADDENDUM}`
+    prompt = `${prompt}\n${serializeAiFeature(body.aiFeature as AiFeatureData)}`
   }
 
   const result = streamText({

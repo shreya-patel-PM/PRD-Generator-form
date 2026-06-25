@@ -9,6 +9,7 @@ import {
   type OnePagerData,
 } from './modes'
 import type { PrdGeneration } from './use-prd-generation'
+import type { AiFeatureControls } from './ai-feature'
 
 function PhaseHeading({ n, title }: { n: number; title: string }) {
   return (
@@ -25,10 +26,12 @@ export function OnePagerForm({
   productName,
   authorName,
   gen,
+  ai,
 }: {
   productName: string
   authorName: string
   gen: PrdGeneration
+  ai: AiFeatureControls
 }) {
   const [data, setData] = useState<OnePagerData>(initialOnePager)
 
@@ -38,10 +41,16 @@ export function OnePagerForm({
     [],
   )
 
-  const ready = isOnePagerComplete(data)
+  const ready = isOnePagerComplete(data) && ai.ready
 
   const handleGenerate = () =>
-    gen.generate({ mode: 'one-pager', productName, authorName, ...data })
+    gen.generate({
+      mode: 'one-pager',
+      productName,
+      authorName,
+      ...data,
+      ...ai.payload,
+    })
 
   return (
     <div className="flex flex-col gap-6">
@@ -138,6 +147,8 @@ export function OnePagerForm({
           />
         </Field>
       </section>
+
+      {ai.section}
 
       <FormError message={gen.error} />
       <GenerateBar
