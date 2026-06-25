@@ -103,11 +103,56 @@ export function isPhaseComplete(phase: Phase, data: PrdData): boolean {
       filled(data.proposedSolution) &&
       filled(data.scope) &&
       filled(data.nonGoals) &&
-      completeCriteria.length >= 3 &&
+      completeCriteria.length >= 1 &&
       filled(data.successMetrics)
     )
   }
   return (
     filled(data.risks) && filled(data.dependencies) && filled(data.openQuestions)
   )
+}
+
+// Returns a list of human-readable required fields that are still blocking the
+// given phase from being considered complete. User Flows is intentionally NOT
+// required, so it never appears here.
+export function getMissingFields(phase: Phase, data: PrdData): string[] {
+  const filled = (v: string) => v.trim().length > 0
+  const missing: string[] = []
+
+  if (phase === 'problem') {
+    if (!filled(data.productName)) missing.push('Product / Feature Name')
+    if (!filled(data.background)) missing.push('Background')
+    if (!filled(data.problemStatement)) missing.push('Problem Statement')
+    const incompletePersona = data.personas.some(
+      (p) =>
+        !filled(p.name) ||
+        !filled(p.role) ||
+        !filled(p.goals) ||
+        !filled(p.painPoints),
+    )
+    if (data.personas.length < 1 || incompletePersona)
+      missing.push('Target Personas (all fields)')
+    if (!filled(data.customerQuote)) missing.push('Customer Quote')
+    if (!filled(data.alignment)) missing.push('Strategic Alignment')
+    if (!filled(data.assumptions)) missing.push('Assumptions')
+    return missing
+  }
+
+  if (phase === 'solution') {
+    if (!filled(data.proposedSolution)) missing.push('Proposed Solution')
+    if (!filled(data.scope)) missing.push('Scope')
+    if (!filled(data.nonGoals)) missing.push('Non-Goals')
+    const completeCriteria = data.criteria.filter(
+      (c) => c.persona.trim() && c.action.trim() && c.outcome.trim(),
+    )
+    if (completeCriteria.length < 1)
+      missing.push('Acceptance Criteria (at least 1 complete entry)')
+    if (!filled(data.successMetrics)) missing.push('Success Metrics')
+    return missing
+  }
+
+  if (!filled(data.risks)) missing.push('Risks')
+  if (!filled(data.dependencies)) missing.push('Dependencies')
+  if (!filled(data.openQuestions)) missing.push('Open Questions')
+  return missing
 }
