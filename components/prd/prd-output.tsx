@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowLeft, Check, Copy, Download } from 'lucide-react'
+import { ArrowLeft, Check, Copy, Download, Loader2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
@@ -14,10 +14,12 @@ function slugify(name: string): string {
 export function PrdOutput({
   markdown,
   productName,
+  streaming = false,
   onBack,
 }: {
   markdown: string
   productName: string
+  streaming?: boolean
   onBack: () => void
 }) {
   const [copied, setCopied] = useState(false)
@@ -48,11 +50,22 @@ export function PrdOutput({
           Back to editor
         </Button>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={copy}>
+          {streaming && (
+            <span className="mr-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Loader2 className="size-3.5 animate-spin" />
+              Generating...
+            </span>
+          )}
+          <Button variant="outline" size="sm" onClick={copy} disabled={streaming}>
             {copied ? <Check /> : <Copy />}
             {copied ? 'Copied' : 'Copy Markdown'}
           </Button>
-          <Button variant="outline" size="sm" onClick={download}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={download}
+            disabled={streaming}
+          >
             <Download />
             Download .md
           </Button>
@@ -63,6 +76,14 @@ export function PrdOutput({
           className="prose prose-sm max-w-none prose-headings:font-semibold prose-headings:text-card-foreground prose-h1:text-2xl prose-h2:mt-8 prose-h2:border-b prose-h2:border-border prose-h2:pb-2 prose-h2:text-xl prose-h3:text-base prose-p:text-card-foreground/90 prose-li:text-card-foreground/90 prose-strong:text-card-foreground prose-blockquote:border-l-primary prose-blockquote:text-muted-foreground prose-a:text-primary prose-table:text-sm prose-th:text-card-foreground prose-td:text-card-foreground/90"
         >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+          {streaming && (
+            <span className="inline-block h-4 w-2 animate-pulse rounded-sm bg-primary align-middle" />
+          )}
+          {streaming && markdown.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Drafting your PRD...
+            </p>
+          )}
         </article>
       </div>
     </div>

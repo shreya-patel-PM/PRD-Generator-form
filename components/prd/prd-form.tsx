@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { Check, FileText, Loader2, Lock } from 'lucide-react'
+import { AlertCircle, Check, FileText, Loader2, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Field, TextInput } from './fields'
@@ -9,7 +9,13 @@ import { ProblemPhase } from './problem-phase'
 import { SolutionPhase } from './solution-phase'
 import { RisksPhase } from './risks-phase'
 import { PrdOutput } from './prd-output'
-import { initialData, isPhaseComplete, type Phase, type PrdData } from './types'
+import {
+  getMissingFields,
+  initialData,
+  isPhaseComplete,
+  type Phase,
+  type PrdData,
+} from './types'
 
 const PHASES: { id: Phase; label: string; n: number }[] = [
   { id: 'problem', label: 'Problem Space', n: 1 },
@@ -21,6 +27,7 @@ export function PrdForm() {
   const [data, setData] = useState<PrdData>(initialData)
   const [active, setActive] = useState<Phase>('problem')
   const [generating, setGenerating] = useState(false)
+  const [streaming, setStreaming] = useState(false)
   const [markdown, setMarkdown] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -58,21 +65,47 @@ export function PrdForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json?.error || 'Generation failed.')
-      setMarkdown(json.markdown as string)
+
+      if (!res.ok) {
+        // Error responses come back as JSON, not a stream.
+        const json = await res.json().catch(() => null)
+        throw new Error(json?.error || 'Generation failed.')
+      }
+
+      if (!res.body) throw new Error('No response stream received.')
+
+      // Switch into the output view and append text as it streams in.
+      setMarkdown('')
+      setStreaming(true)
+      setGenerating(false)
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let acc = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        acc += decoder.decode(value, { stream: true })
+        setMarkdown(acc)
+      }
+      acc += decoder.decode()
+      setMarkdown(acc)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
+      setMarkdown(null)
     } finally {
       setGenerating(false)
+      setStreaming(false)
     }
   }
 
-  if (markdown) {
+  if (markdown !== null) {
     return (
       <PrdOutput
         markdown={markdown}
         productName={data.productName}
+        streaming={streaming}
         onBack={() => {
           setMarkdown(null)
           setActive('risks')
@@ -169,12 +202,39 @@ export function PrdForm() {
         })}
       </div>
 
-      {/* Locked notice */}
-      {active === 'problem' && !problemDone && (
-        <p className="text-xs text-muted-foreground">
-          Complete all required Problem Space fields to unlock Solution Space.
-        </p>
-      )}
+      {/* Blocking-fields indicator for the active phase */}
+      {(() => {
+        const nextLabel =
+          active === 'problem'
+            ? 'Solution Space'
+            : active === 'solution'
+              ? 'Risks & Dependencies'
+              : null
+        const missing = getMissingFields(active, data)
+        if (missing.length === 0) return null
+        return (
+          <div className="rounded-xl border border-accent bg-accent/40 px-4 py-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-accent-foreground">
+              <AlertCircle className="size-4 shrink-0" />
+              {nextLabel ? (
+                <span>{`${missing.length} field${missing.length > 1 ? 's' : ''} still blocking ${nextLabel}`}</span>
+              ) : (
+                <span>{`${missing.length} required field${missing.length > 1 ? 's' : ''} remaining in this phase`}</span>
+              )}
+            </div>
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {missing.map((field) => (
+                <li
+                  key={field}
+                  className="rounded-full border border-accent-foreground/20 bg-card px-2.5 py-1 text-xs text-muted-foreground"
+                >
+                  {field}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      })()}
 
       {/* Active phase content */}
       <div
