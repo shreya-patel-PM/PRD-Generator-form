@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { Field, TextInput, Toggle } from './fields'
 import { ModeSelector } from './mode-selector'
+import { ModeSwitchDialog } from './mode-switch-dialog'
 import { OnePagerForm } from './one-pager-form'
 import { FullPrdForm } from './full-prd-form'
 import { PrFaqForm } from './pr-faq-form'
@@ -24,6 +25,10 @@ export function PrdForm() {
   const [authorName, setAuthorName] = useState('')
   const [aiEnabled, setAiEnabled] = useState(false)
   const [aiData, setAiData] = useState<AiFeatureData>(initialAiFeature)
+  // Whether the active mode form has unsaved mode-specific content, and the
+  // mode the PM is trying to switch to (drives the confirmation dialog).
+  const [dirty, setDirty] = useState(false)
+  const [pendingMode, setPendingMode] = useState<Mode | null>(null)
   const gen = usePrdGeneration()
 
   const setAi = useCallback(
@@ -31,6 +36,34 @@ export function PrdForm() {
       setAiData((prev) => ({ ...prev, [key]: value })),
     [],
   )
+
+  // Stable callback the active mode form uses to report its dirty state up.
+  const handleDirtyChange = useCallback((isDirty: boolean) => {
+    setDirty(isDirty)
+  }, [])
+
+  // Gate the mode switch: confirm first if there is mode-specific content that
+  // would be cleared, otherwise switch immediately.
+  const requestModeChange = useCallback(
+    (next: Mode) => {
+      setMode((current) => {
+        if (next === current) return current
+        if (dirty) {
+          setPendingMode(next)
+          return current
+        }
+        return next
+      })
+    },
+    [dirty],
+  )
+
+  const confirmModeSwitch = useCallback(() => {
+    setPendingMode((next) => {
+      if (next) setMode(next)
+      return null
+    })
+  }, [])
 
   if (gen.markdown !== null) {
     return (
@@ -81,7 +114,7 @@ export function PrdForm() {
       </div>
 
       {/* Mode selector */}
-      <ModeSelector mode={mode} onChange={setMode} />
+      <ModeSelector mode={mode} onChange={requestModeChange} />
 
       {/* AI Feature toggle */}
       <div className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
@@ -117,6 +150,7 @@ export function PrdForm() {
           authorName={authorName}
           gen={gen}
           ai={ai}
+          onDirtyChange={handleDirtyChange}
         />
       )}
       {mode === 'full' && (
@@ -125,6 +159,7 @@ export function PrdForm() {
           authorName={authorName}
           gen={gen}
           ai={ai}
+          onDirtyChange={handleDirtyChange}
         />
       )}
       {mode === 'pr-faq' && (
@@ -133,8 +168,15 @@ export function PrdForm() {
           authorName={authorName}
           gen={gen}
           ai={ai}
+          onDirtyChange={handleDirtyChange}
         />
       )}
+
+      <ModeSwitchDialog
+        open={pendingMode !== null}
+        onConfirm={confirmModeSwitch}
+        onCancel={() => setPendingMode(null)}
+      />
     </div>
   )
 }

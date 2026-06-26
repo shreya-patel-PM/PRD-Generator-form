@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Check, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Field, TextArea, TextInput } from './fields'
@@ -39,11 +39,13 @@ export function PrFaqForm({
   authorName,
   gen,
   ai,
+  onDirtyChange,
 }: {
   productName: string
   authorName: string
   gen: PrdGeneration
   ai: AiFeatureControls
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const [data, setData] = useState<PrFaqData>(initialPrFaq)
   const [active, setActive] = useState<TabId>('customer')
@@ -51,6 +53,14 @@ export function PrFaqForm({
     {},
   )
   const [compliance, setCompliance] = useState<ComplianceData>(initialCompliance)
+
+  // Dirty when any mode-specific field or compliance content is present.
+  useEffect(() => {
+    const dirty =
+      Object.values(data).some((v) => v.trim().length > 0) ||
+      hasComplianceContent(compliance)
+    onDirtyChange?.(dirty)
+  }, [data, compliance, onDirtyChange])
 
   const set = useCallback(
     <K extends keyof PrFaqData>(key: K, value: PrFaqData[K]) =>

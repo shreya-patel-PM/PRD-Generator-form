@@ -277,7 +277,7 @@ const AI_PLACEMENT: Record<Mode, string> = {
     "PLACEMENT (Mode A — 1-Pager): Combine all 8 into a single 'AI Considerations' section placed BEFORE the Top Risks section. Keep it concise — 1-2 sentences per sub-section.",
   full: "PLACEMENT (Mode B — Full PRD): Insert all 8 sections as full sections BETWEEN Acceptance Criteria and Success Metrics.",
   'pr-faq':
-    "PLACEMENT (Mode C — PR/FAQ): Add an 'AI Considerations' subsection WITHIN the Execution FAQ that covers all 8 topics compactly.",
+    "PLACEMENT FOR PR/FAQ MODE (AI toggle on):\n- Expand the Execution FAQ to include AI-specific Q&A drawn from these 4 sections: Eval Plan (section 2), Hallucination & Failure Modes (section 3), Cost Model (section 6), and Rollout Plan (section 8). Frame each as an Execution FAQ question-answer pair.\n- After the Execution FAQ, add a separate section titled 'AI Implementation Notes' containing the remaining 4 sections as short prose blocks: Model Selection Rationale (section 1), Fallback UX (section 4), Training Data & Provenance (section 5), and Safety & Guardrails (section 7).\n- The Self-Review Checklist appears last, after AI Implementation Notes.",
 }
 
 const AI_CONCISENESS =

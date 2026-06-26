@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Check, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BlockingFields, FormError, GenerateBar } from './form-shared'
@@ -41,11 +41,13 @@ export function FullPrdForm({
   authorName,
   gen,
   ai,
+  onDirtyChange,
 }: {
   productName: string
   authorName: string
   gen: PrdGeneration
   ai: AiFeatureControls
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const [data, setData] = useState<PrdData>(initialData)
   const [active, setActive] = useState<TabId>('problem')
@@ -53,6 +55,41 @@ export function FullPrdForm({
     {},
   )
   const [compliance, setCompliance] = useState<ComplianceData>(initialCompliance)
+
+  // Dirty when any mode-specific text field, persona/criterion entry, or
+  // compliance content is present (the universal header is excluded — it is
+  // preserved across modes).
+  useEffect(() => {
+    const textDirty = (
+      [
+        data.background,
+        data.problemStatement,
+        data.customerQuote,
+        data.alignment,
+        data.assumptions,
+        data.proposedSolution,
+        data.scope,
+        data.nonGoals,
+        data.userFlows,
+        data.successMetrics,
+        data.risks,
+        data.dependencies,
+        data.openQuestions,
+      ] as string[]
+    ).some((v) => v.trim().length > 0)
+    const personasDirty = data.personas.some(
+      (p) => p.name || p.role || p.goals || p.painPoints,
+    )
+    const criteriaDirty = data.criteria.some(
+      (c) => c.persona || c.action || c.outcome,
+    )
+    onDirtyChange?.(
+      textDirty ||
+        personasDirty ||
+        criteriaDirty ||
+        hasComplianceContent(compliance),
+    )
+  }, [data, compliance, onDirtyChange])
 
   const set = useCallback(
     <K extends keyof PrdData>(key: K, value: PrdData[K]) =>

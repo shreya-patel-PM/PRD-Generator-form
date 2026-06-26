@@ -31,16 +31,19 @@ export function ModeSelector({
               aria-checked={selected}
               onClick={() => onChange(m.id)}
               className={cn(
-                'relative flex flex-col gap-1 rounded-xl border bg-card p-4 text-left transition-colors',
+                'relative flex flex-col gap-1 rounded-xl border border-l-4 bg-card p-4 text-left transition-colors',
                 selected
                   ? cn(m.accentBorder, m.accentBg, 'shadow-sm')
-                  : 'border-border hover:border-foreground/20',
+                  : 'border-border border-l-border hover:border-foreground/20',
               )}
             >
               <span className="flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <span
-                    className={cn('size-2.5 rounded-full', m.accentDot)}
+                    className={cn(
+                      'size-2.5 rounded-full',
+                      selected ? m.accentDot : 'bg-muted-foreground/30',
+                    )}
                     aria-hidden="true"
                   />
                   <span className="text-sm font-semibold text-foreground">

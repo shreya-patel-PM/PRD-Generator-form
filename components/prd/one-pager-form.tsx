@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Field, TextArea, TextInput } from './fields'
 import { FormError, GenerateBar } from './form-shared'
 import {
@@ -32,16 +32,24 @@ export function OnePagerForm({
   authorName,
   gen,
   ai,
+  onDirtyChange,
 }: {
   productName: string
   authorName: string
   gen: PrdGeneration
   ai: AiFeatureControls
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const [data, setData] = useState<OnePagerData>(initialOnePager)
   const [requiredOverrides, setRequiredOverrides] = useState<RequiredOverrides>(
     {},
   )
+
+  // Report whether any mode-specific field holds content, so the router can
+  // warn before a mode switch clears it.
+  useEffect(() => {
+    onDirtyChange?.(Object.values(data).some((v) => v.trim().length > 0))
+  }, [data, onDirtyChange])
 
   const set = useCallback(
     <K extends keyof OnePagerData>(key: K, value: OnePagerData[K]) =>
